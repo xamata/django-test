@@ -1,5 +1,5 @@
 import graphene
-from graphene_django import DjangoObjectType, DjangoListField
+from graphene_django import DjangoObjectType
 from .models import Book
 
 
@@ -7,7 +7,8 @@ from .models import Book
 class BookType(DjangoObjectType):
     class Meta:
         model = Book
-        fields = "__all__"  # indicates that we want all fields in the model available in our API
+        # indicates that we want all fields in the model available in our API
+        fields = "__all__"
 
 
 # Query class provides the queries that will be provided to the clients
@@ -56,3 +57,48 @@ class CreateBook(graphene.Mutation):
         book_instance.save()
         # use CreateBook class to save a new book
         return CreateBook(book=book_instance)
+
+
+class UpdateBook(graphene.Mutation):
+    class Arguments:
+        book_data = BookInput(required=True)
+
+    book = graphene.Field(BookType)
+
+    @staticmethod
+    def mutate(root, info, book_data=None):
+        book_instance = Book.objects.get(pk=book_data.id)
+
+        if book_instance:
+            book_instance.title = book_data.title
+            book_instance.author = book_data.author
+            book_instance.year_published = book_data.year_published
+            book_instance.review = book_data.review
+            book_instance.save()
+
+            return UpdateBook(book=book_instance)
+        return UpdateBook(book=None)
+
+
+class DeleteBook(graphene.Mutation):
+    # DeleteBook uses graphene.ID to remove the book from db
+    class Arguments:
+        id = graphene.ID()
+
+    book = graphene.Field(BookType)
+
+    @staticmethod
+    def mutate(root, info, id):
+        book_instance = Book.objects.get(pk=id)
+        book_instance.delete()
+
+        return None
+
+
+class Mutation(graphene.ObjectType):
+    update_book = UpdateBook.Field()
+    create_book = CreateBook.Field()
+    delete_book = DeleteBook.Field()
+
+
+schema = graphene.Schema(query=Query, mutation=Mutation)
