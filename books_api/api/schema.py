@@ -1,6 +1,10 @@
 import graphene
 from graphene_django import DjangoObjectType
 from .models import Book
+from graphql.execution.base import ResolveInfo
+from graphql_auth.bases import Output
+from graphene_file_upload.scalars import Upload
+from .forms import CreateCompanyMutationForm
 
 
 # adpats the book Book model to a DjangoObjectType
@@ -80,6 +84,35 @@ class UpdateBook(graphene.Mutation):
         return UpdateBook(book=None)
 
 
+class CreateCompanyMutation(graphene.Mutation, Output):
+    form = CreateCompanyMutationForm
+
+    class Arguments:
+        """Necessary input to create a new Company."""
+
+        name = graphene.String(required=True, description="Company name")
+        logo = Upload(
+            required=False,
+            description="Logo for the Company.",
+        )
+
+    def mutate(self, info: ResolveInfo, logo=None, **data) -> "CreateCompanyMutation":
+        """Mutate method."""
+        file_data = {}
+        if logo:
+            file_data = {"logo": logo}
+
+        # https://docs.djangoproject.com/en/3.2/ref/forms/api/#binding-uploaded-files-to-a-form
+        # Binding file data to the Form.
+        f = CreateCompanyMutation.form(data, file_data)
+
+        if f.is_valid():
+            f.save()
+            return CreateCompanyMutation(success=True)
+        else:
+            return CreateCompanyMutation(success=False, errors=f.errors.get_json_data())
+
+
 class DeleteBook(graphene.Mutation):
     # DeleteBook uses graphene.ID to remove the book from db
     class Arguments:
@@ -99,6 +132,7 @@ class Mutation(graphene.ObjectType):
     update_book = UpdateBook.Field()
     create_book = CreateBook.Field()
     delete_book = DeleteBook.Field()
+    create_company = CreateCompanyMutation.Field()
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
